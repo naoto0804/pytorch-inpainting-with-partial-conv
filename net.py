@@ -56,7 +56,7 @@ class PConv2d(nn.Module):
         # why should contiguous be called??
         # https://github.com/pytorch/pytorch/issues/764
 
-        output_mask = output / output_mask
+        output_mask = output_mask / output_mask
         output_mask.masked_fill_(torch.isnan(output_mask), 0.0)
 
         return output, output_mask
@@ -150,7 +150,8 @@ if __name__ == '__main__':
     input_mask = torch.ones(1, 3, 512, 512)
     input_mask[:, :, 256:, :][:, :, :, 256:] = 0
 
-    model = PConvUNet()
-    output, output_mask = model(input, input_mask)
+    conv = PConv2d(3, 10, 3, 1, 1)
+    output, output_mask = conv(input, input_mask)
 
-    pass
+    # model = PConvUNet()
+    # output, output_mask = model(input, input_mask)

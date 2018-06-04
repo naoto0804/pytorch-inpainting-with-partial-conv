@@ -5,6 +5,8 @@ import torch
 from tensorboardX import SummaryWriter
 from torch.utils import data
 from torchvision import transforms
+from torchvision.utils import make_grid
+from torchvision.utils import save_image
 from tqdm import tqdm
 
 import opt
@@ -12,6 +14,7 @@ from dataset import Dataset
 from loss import InpaintingLoss
 from net import PConvUNet
 from net import VGG16FeatureExtractor
+from util.image import unnormalize
 from util.io import load_ckpt
 from util.io import save_ckpt
 
@@ -42,19 +45,19 @@ class InfiniteSampler(data.sampler.Sampler):
 parser = argparse.ArgumentParser()
 # training options
 parser.add_argument('--root', type=str, default='./data')
-parser.add_argument('--save_dir', type=str, default='./snapshots')
-parser.add_argument('--log_dir', type=str, default='./logs')
-parser.add_argument('--lr', type=float, default=1e-4)
+parser.add_argument('--save_dir', type=str, default='./snapshots/default')
+parser.add_argument('--log_dir', type=str, default='./logs/default')
+parser.add_argument('--lr', type=float, default=2e-4)  # 2e-4 -> 5e-5
 parser.add_argument('--max_iter', type=int, default=100000)
 parser.add_argument('--batch_size', type=int, default=8)
-parser.add_argument('--style_weight', type=float, default=10.0)
-parser.add_argument('--content_weight', type=float, default=1.0)
 parser.add_argument('--n_threads', type=int, default=16)
 parser.add_argument('--save_model_interval', type=int, default=10000)
+parser.add_argument('--vis_interval', type=int, default=100)
 parser.add_argument('--resume', type=str)
 args = parser.parse_args()
 
-lambda_dict = {'valid': 1.0, 'hole': 5.0, 'prc': 0.05, 'style': 10.0, 'tv': 0.1}
+lambda_dict = {'valid': 1.0, 'hole': 5.0, 'prc': 0.05, 'style': 100.0,
+               'tv': 0.1}
 
 device = torch.device('cuda')
 
@@ -63,7 +66,7 @@ if not os.path.exists(args.save_dir):
     os.makedirs('{:s}/ckpt')
 
 if not os.path.exists(args.log_dir):
-    os.mkdirs(args.log_dir)
+    os.makedirs(args.log_dir)
 writer = SummaryWriter(log_dir=args.log_dir)
 
 img_transform = transforms.Compose(
@@ -109,9 +112,21 @@ for i in tqdm(range(start_iter, args.max_iter)):
     optimizer.step()
 
     if (i + 1) % args.save_model_interval == 0 or (i + 1) == args.max_iter:
-        save_ckpt('{:s}/ckpt/{:d}.pth'.format(args.snapshot_dir, i + 1),
+        save_ckpt('{:s}/ckpt/{:d}.pth'.format(args.save_dir, i + 1),
                   [('model', model)], [('optimizer', optimizer)], i + 1)
 
-    # TODO visualization
+    if (i + 1) % args.vis_interval == 0:
+        image, mask, gt = zip(*[dataset_val[i] for i in range(8)])
+        image = torch.stack(image)
+        mask = torch.stack(mask)
+        gt = torch.stack(gt)
+        output, _ = model(image.to(device), mask.to(device))
+        output = output.to(torch.device('cpu'))
+        output_comp = mask * image + (1 - mask) * output
+
+        grid = make_grid(
+            torch.cat((unnormalize(image), mask, unnormalize(output),
+                       unnormalize(output_comp), unnormalize(gt)), dim=0))
+        save_image(grid, '{:s}/images/{:d}.jpg'.format(args.save_dir, i + 1))
 
 writer.close()
