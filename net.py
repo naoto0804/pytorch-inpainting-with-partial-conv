@@ -2,6 +2,30 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
+import math
+
+
+def weights_init(init_type='gaussian'):
+    def init_fun(m):
+        classname = m.__class__.__name__
+        if (classname.find('Conv') == 0 or classname.find(
+                'Linear') == 0) and hasattr(m, 'weight'):
+            if init_type == 'gaussian':
+                nn.init.normal_(m.weight, 0.0, 0.02)
+            elif init_type == 'xavier':
+                nn.init.xavier_normal_(m.weight, gain=math.sqrt(2))
+            elif init_type == 'kaiming':
+                nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
+            elif init_type == 'orthogonal':
+                nn.init.orthogonal_(m.weight, gain=math.sqrt(2))
+            elif init_type == 'default':
+                pass
+            else:
+                assert 0, "Unsupported initialization: {}".format(init_type)
+            if hasattr(m, 'bias') and m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+
+    return init_fun
 
 
 class VGG16FeatureExtractor(nn.Module):
@@ -30,6 +54,7 @@ class PConv2d(nn.Module):
         super().__init__()
         self.conv2d = nn.Conv2d(in_ch, out_ch, kernel_size, stride, padding)
         self.mask2d = nn.Conv2d(in_ch, out_ch, kernel_size, stride, padding)
+        self.conv2d.apply(weights_init('kaiming'))
         self.mask2d.weight.data.fill_(1.0)
         self.mask2d.bias.data.fill_(0.0)
 
@@ -47,17 +72,19 @@ class PConv2d(nn.Module):
                 input_mask, self.mask2d.weight, None, self.mask2d.stride,
                 self.mask2d.padding, self.mask2d.dilation, self.mask2d.groups)
 
-        output = output / output_mask
-        output = torch.transpose(output, 1, 3).contiguous()
-        output = output + self.conv2d.bias
-        output = torch.transpose(output, 1, 3).contiguous()
-        output.masked_fill_(torch.isnan(output), 0.0)
+        n_z_ind = (output_mask != 0.0)
+        z_ind = (output_mask == 0.0)
 
         # why should contiguous be called??
         # https://github.com/pytorch/pytorch/issues/764
+        output[n_z_ind] = output[n_z_ind] / output_mask[n_z_ind]
+        output[z_ind] = 0.0
+        output = torch.transpose(output, 1, 3).contiguous()
+        output = output + self.conv2d.bias
+        output = torch.transpose(output, 1, 3).contiguous()
 
-        output_mask = output_mask / output_mask
-        output_mask.masked_fill_(torch.isnan(output_mask), 0.0)
+        output_mask[n_z_ind] = output_mask[n_z_ind] / output_mask[n_z_ind]
+        output_mask[z_ind] = 0.0
 
         return output, output_mask
 
@@ -150,8 +177,17 @@ if __name__ == '__main__':
     input_mask = torch.ones(1, 3, 512, 512)
     input_mask[:, :, 256:, :][:, :, :, 256:] = 0
 
-    conv = PConv2d(3, 10, 3, 1, 1)
+    conv = PConv2d(3, 3, 3, 1, 1)
+    l1 = nn.L1Loss()
+    input.requires_grad = True
+
     output, output_mask = conv(input, input_mask)
+    loss = l1(output, torch.randn(1, 3, 512, 512))
+    loss.backward()
+
+    assert (torch.sum(input.grad != input.grad).item() == 0)
+    assert (torch.sum(torch.isnan(conv.conv2d.weight.grad)).item() == 0)
+    assert (torch.sum(torch.isnan(conv.conv2d.bias.grad)).item() == 0)
 
     # model = PConvUNet()
     # output, output_mask = model(input, input_mask)

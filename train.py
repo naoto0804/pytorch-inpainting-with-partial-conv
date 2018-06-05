@@ -53,11 +53,10 @@ parser.add_argument('--batch_size', type=int, default=8)
 parser.add_argument('--n_threads', type=int, default=16)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--vis_interval', type=int, default=100)
+parser.add_argument('--log_interval', type=int, default=10)
 parser.add_argument('--resume', type=str)
+parser.add_argument('--image_size', type=int, default=256)
 args = parser.parse_args()
-
-lambda_dict = {'valid': 1.0, 'hole': 5.0, 'prc': 0.05, 'style': 100.0,
-               'tv': 0.1}
 
 device = torch.device('cuda')
 
@@ -69,12 +68,12 @@ if not os.path.exists(args.log_dir):
     os.makedirs(args.log_dir)
 writer = SummaryWriter(log_dir=args.log_dir)
 
+size = (args.image_size, args.image_size)
 img_transform = transforms.Compose(
-    [transforms.Resize(size=(512, 512)), transforms.ToTensor(),
+    [transforms.Resize(size=size), transforms.ToTensor(),
      transforms.Normalize(mean=opt.MEAN, std=opt.STD)])
-
 mask_transform = transforms.Compose(
-    [transforms.Resize(size=(512, 512)), transforms.ToTensor()])
+    [transforms.Resize(size=size), transforms.ToTensor()])
 
 dataset_train = Dataset(args.root, img_transform, mask_transform, 'train')
 dataset_val = Dataset(args.root, img_transform, mask_transform, 'val')
@@ -85,6 +84,7 @@ iterator_train = iter(data.DataLoader(
     num_workers=args.n_threads))
 
 model = PConvUNet().to(device)
+model.train()
 
 optimizer = torch.optim.Adam(
     filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
@@ -101,11 +101,12 @@ for i in tqdm(range(start_iter, args.max_iter)):
     output, _ = model(image, mask)
     loss_dict = criterion(image, mask, output, gt)
 
-    loss = 0
-    for key, coef in lambda_dict.items():
+    loss = 0.0
+    for key, coef in opt.LAMBDA_DICT.items():
         value = coef * loss_dict[key]
         loss += value
-        writer.add_scalar('loss_{:s}'.format(key), value.item(), i + 1)
+        if (i + 1) % args.log_interval == 0:
+            writer.add_scalar('loss_{:s}'.format(key), value.item(), i + 1)
 
     optimizer.zero_grad()
     loss.backward()
@@ -116,6 +117,7 @@ for i in tqdm(range(start_iter, args.max_iter)):
                   [('model', model)], [('optimizer', optimizer)], i + 1)
 
     if (i + 1) % args.vis_interval == 0:
+        model.eval()
         image, mask, gt = zip(*[dataset_val[i] for i in range(8)])
         image = torch.stack(image)
         mask = torch.stack(mask)
@@ -128,5 +130,6 @@ for i in tqdm(range(start_iter, args.max_iter)):
             torch.cat((unnormalize(image), mask, unnormalize(output),
                        unnormalize(output_comp), unnormalize(gt)), dim=0))
         save_image(grid, '{:s}/images/{:d}.jpg'.format(args.save_dir, i + 1))
+        model.train()
 
 writer.close()
