@@ -47,22 +47,24 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--root', type=str, default='./data')
 parser.add_argument('--save_dir', type=str, default='./snapshots/default')
 parser.add_argument('--log_dir', type=str, default='./logs/default')
-parser.add_argument('--lr', type=float, default=2e-4)  # 2e-4 -> 5e-5
+parser.add_argument('--lr', type=float, default=2e-4)
+parser.add_argument('--lr_finetune', type=float, default=5e-5)
 parser.add_argument('--max_iter', type=int, default=100000)
 parser.add_argument('--batch_size', type=int, default=8)
 parser.add_argument('--n_threads', type=int, default=16)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--vis_interval', type=int, default=100)
 parser.add_argument('--log_interval', type=int, default=10)
-parser.add_argument('--resume', type=str)
 parser.add_argument('--image_size', type=int, default=256)
+parser.add_argument('--resume', type=str)
+parser.add_argument('--finetune', action='store_true')
 args = parser.parse_args()
 
 device = torch.device('cuda')
 
 if not os.path.exists(args.save_dir):
-    os.makedirs('{:s}/images')
-    os.makedirs('{:s}/ckpt')
+    os.makedirs('{:s}/images'.format(args.save_dir))
+    os.makedirs('{:s}/ckpt'.format(args.save_dir))
 
 if not os.path.exists(args.log_dir):
     os.makedirs(args.log_dir)
@@ -84,11 +86,16 @@ iterator_train = iter(data.DataLoader(
     num_workers=args.n_threads))
 
 model = PConvUNet().to(device)
-model.train()
 
 optimizer = torch.optim.Adam(
     filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
+
+if args.finetune:
+    lr = args.lr_finetune
+    model.freeze_enc_bn = True
+else:
+    lr = args.lr
 
 if args.resume:
     start_iter = load_ckpt(
@@ -97,6 +104,8 @@ else:
     start_iter = 0
 
 for i in tqdm(range(start_iter, args.max_iter)):
+    model.train()
+
     image, mask, gt = [x.to(device) for x in next(iterator_train)]
     output, _ = model(image, mask)
     loss_dict = criterion(image, mask, output, gt)
@@ -122,7 +131,8 @@ for i in tqdm(range(start_iter, args.max_iter)):
         image = torch.stack(image)
         mask = torch.stack(mask)
         gt = torch.stack(gt)
-        output, _ = model(image.to(device), mask.to(device))
+        with torch.no_grad():
+            output, _ = model(image.to(device), mask.to(device))
         output = output.to(torch.device('cpu'))
         output_comp = mask * image + (1 - mask) * output
 
@@ -130,6 +140,5 @@ for i in tqdm(range(start_iter, args.max_iter)):
             torch.cat((unnormalize(image), mask, unnormalize(output),
                        unnormalize(output_comp), unnormalize(gt)), dim=0))
         save_image(grid, '{:s}/images/{:d}.jpg'.format(args.save_dir, i + 1))
-        model.train()
 
 writer.close()

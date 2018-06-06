@@ -1,8 +1,9 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
-import math
 
 
 def weights_init(init_type='gaussian'):
@@ -63,27 +64,36 @@ class PConv2d(nn.Module):
             param.requires_grad = False
 
     def forward(self, input, input_mask):
+        # http://masc.cs.gmu.edu/wiki/partialconv
+        # C(X) = W^T * X + b, C(0) = b, D(M) = 1 * M + 0 = sum(M)
+        # W^T* (M .* X) / sum(M) + b = [C(M .* X) – C(0)] / D(M) + C(0)
+
+        input_0 = input.new_zeros(input.size())
+
         output = F.conv2d(
-            input * input_mask, self.conv2d.weight, None, self.conv2d.stride,
-            self.conv2d.padding, self.conv2d.dilation, self.conv2d.groups)
+            input * input_mask, self.conv2d.weight, self.conv2d.bias,
+            self.conv2d.stride, self.conv2d.padding, self.conv2d.dilation,
+            self.conv2d.groups)
+
+        output_0 = F.conv2d(input_0, self.conv2d.weight, self.conv2d.bias,
+                            self.conv2d.stride, self.conv2d.padding,
+                            self.conv2d.dilation, self.conv2d.groups)
 
         with torch.no_grad():
             output_mask = F.conv2d(
-                input_mask, self.mask2d.weight, None, self.mask2d.stride,
-                self.mask2d.padding, self.mask2d.dilation, self.mask2d.groups)
+                input_mask, self.mask2d.weight, self.mask2d.bias,
+                self.mask2d.stride, self.mask2d.padding, self.mask2d.dilation,
+                self.mask2d.groups)
 
         n_z_ind = (output_mask != 0.0)
-        z_ind = (output_mask == 0.0)
+        z_ind = (output_mask == 0.0)  # skip all the computation
 
-        # why should contiguous be called??
-        # https://github.com/pytorch/pytorch/issues/764
-        output[n_z_ind] = output[n_z_ind] / output_mask[n_z_ind]
+        output[n_z_ind] = \
+            (output[n_z_ind] - output_0[n_z_ind]) / output_mask[n_z_ind] + \
+            output_0[n_z_ind]
         output[z_ind] = 0.0
-        output = torch.transpose(output, 1, 3).contiguous()
-        output = output + self.conv2d.bias
-        output = torch.transpose(output, 1, 3).contiguous()
 
-        output_mask[n_z_ind] = output_mask[n_z_ind] / output_mask[n_z_ind]
+        output_mask[n_z_ind] = 1.0
         output_mask[z_ind] = 0.0
 
         return output, output_mask
@@ -120,6 +130,7 @@ class PCBR(nn.Module):
 class PConvUNet(nn.Module):
     def __init__(self):
         super().__init__()
+        self.freeze_enc_bn = False
         self.enc_1 = PCBR(3, 64, bn=False, sample='down-7')
         self.enc_2 = PCBR(64, 128, sample='down-5')
         self.enc_3 = PCBR(128, 256, sample='down-5')
@@ -167,27 +178,43 @@ class PConvUNet(nn.Module):
 
             h = torch.cat([h, h_dict[enc_h_key]], dim=1)
             h_mask = torch.cat([h_mask, h_mask_dict[enc_h_key]], dim=1)
+
             h, h_mask = getattr(self, dec_l_key)(h, h_mask)
 
         return h, h_mask
 
+    def train(self, mode=True):
+        """
+        Override the default train() to freeze the BN parameters
+        """
+        super().train(mode)
+        if self.freeze_enc_bn:
+            for name, module in self.named_modules():
+                if isinstance(module, nn.BatchNorm2d) and 'enc' in name:
+                    module.eval()
+
 
 if __name__ == '__main__':
-    input = torch.randn(1, 3, 512, 512)
-    input_mask = torch.ones(1, 3, 512, 512)
-    input_mask[:, :, 256:, :][:, :, :, 256:] = 0
+    size = (1, 3, 5, 5)
+    input = torch.ones(size)
+    input_mask = torch.ones(size)
+    input_mask[:, :, 2:, :][:, :, :, 2:] = 0
 
     conv = PConv2d(3, 3, 3, 1, 1)
     l1 = nn.L1Loss()
     input.requires_grad = True
 
     output, output_mask = conv(input, input_mask)
-    loss = l1(output, torch.randn(1, 3, 512, 512))
+    loss = l1(output, torch.randn(1, 3, 5, 5))
     loss.backward()
 
     assert (torch.sum(input.grad != input.grad).item() == 0)
     assert (torch.sum(torch.isnan(conv.conv2d.weight.grad)).item() == 0)
     assert (torch.sum(torch.isnan(conv.conv2d.bias.grad)).item() == 0)
+
+    from IPython import embed
+    embed()
+    exit()
 
     # model = PConvUNet()
     # output, output_mask = model(input, input_mask)
