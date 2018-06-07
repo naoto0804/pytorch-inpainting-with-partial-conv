@@ -2,7 +2,12 @@
 
 This is an unofficial pytorch implementation of a paper, Image Inpainting for Irregular Holes Using Partial Convolutions' [Liu+, arXiv2018].
 
+**Note that this is an ongoing project and I cannot fully reproduce the results. Suggestions are welcome!**
+
 ## Requirements
+- Python3.6
+- Pytorch 0.4.0
+
 ```
 pip install -r requirements.txt
 ```
@@ -15,13 +20,12 @@ Prepare data directory (default: `./data`) containing the following :
 - `images`: images used for training
 - `train.txt`, `val.txt`: list name of files in `images`
 
-And then, use this command.
+And then, use this command to generate masks (saved under `./data/images` by default).
 ```
 python generate_data.py
 ```
 
 ### Train
-Use `--content_dir` and `--style_dir` to provide the respective directory to the content and style images.
 ```
 CUDA_VISIBLE_DEVICES=$(nvidia-empty) python train.py
 ```
