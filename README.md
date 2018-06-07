@@ -15,13 +15,12 @@ Prepare data directory (default: `./data`) containing the following :
 - `images`: images used for training
 - `train.txt`, `val.txt`: list name of files in `images`
 
-And then, use this command.
+And then, use this command to generate masks (saved under `./data/images` by default).
 ```
 python generate_data.py
 ```
 
 ### Train
-Use `--content_dir` and `--style_dir` to provide the respective directory to the content and style images.
 ```
 CUDA_VISIBLE_DEVICES=$(nvidia-empty) python train.py
 ```
