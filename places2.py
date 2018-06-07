@@ -4,20 +4,20 @@ import torch
 from PIL import Image
 
 
-class Dataset(torch.utils.data.Dataset):
-    def __init__(self, root, img_transform, mask_transform, split='train'):
-        super(Dataset, self).__init__()
-        self.root = root
-        self.img_root = '{:s}/{:s}'.format(self.root, 'images')
-        self.mask_root = '{:s}/{:s}'.format(self.root, 'masks')
+class Places2(torch.utils.data.Dataset):
+    def __init__(self, img_root, mask_root, img_transform, mask_transform,
+                 split='train'):
+        super(Places2, self).__init__()
         self.img_transform = img_transform
         self.mask_transform = mask_transform
 
-        with open('{:s}/{:s}.txt'.format(self.root, split)) as f:
-            self.paths = ['{:s}/{:s}'.format(self.img_root, p.strip()) for p in
-                          f.readlines()]
+        # use about 8M images in the challenge dataset
+        if split == 'train':
+            self.paths = glob.glob('{:s}/data_large/*/*/*'.format(img_root))
+        else:
+            self.paths = glob.glob('{:s}/{:s}_large/*'.format(img_root, split))
 
-        self.mask_paths = glob.glob('{:s}/*'.format(self.mask_root))
+        self.mask_paths = glob.glob('{:s}/*'.format(mask_root))
         self.N_mask = len(self.mask_paths)
 
     def __getitem__(self, index):

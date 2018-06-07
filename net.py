@@ -99,7 +99,7 @@ class PConv2d(nn.Module):
         return output, output_mask
 
 
-class PCBR(nn.Module):
+class PCBActiv(nn.Module):
     def __init__(self, in_ch, out_ch, bn=True, sample='none-3', activ='relu'):
         super().__init__()
         if sample == 'down-5':
@@ -128,26 +128,25 @@ class PCBR(nn.Module):
 
 
 class PConvUNet(nn.Module):
-    def __init__(self):
+    def __init__(self, layer_size=7):
         super().__init__()
         self.freeze_enc_bn = False
-        self.enc_1 = PCBR(3, 64, bn=False, sample='down-7')
-        self.enc_2 = PCBR(64, 128, sample='down-5')
-        self.enc_3 = PCBR(128, 256, sample='down-5')
-        self.enc_4 = PCBR(256, 512, sample='down-3')
-        self.enc_5 = PCBR(512, 512, sample='down-3')
-        self.enc_6 = PCBR(512, 512, sample='down-3')
-        self.enc_7 = PCBR(512, 512, sample='down-3')
-        self.enc_8 = PCBR(512, 512, sample='down-3')
+        self.layer_size = layer_size
+        self.enc_1 = PCBActiv(3, 64, bn=False, sample='down-7')
+        self.enc_2 = PCBActiv(64, 128, sample='down-5')
+        self.enc_3 = PCBActiv(128, 256, sample='down-5')
+        self.enc_4 = PCBActiv(256, 512, sample='down-3')
+        for i in range(4, self.layer_size):
+            name = 'enc_{:d}'.format(i + 1)
+            setattr(self, name, PCBActiv(512, 512, sample='down-3'))
 
-        self.dec_8 = PCBR(512 + 512, 512, activ='leaky')
-        self.dec_7 = PCBR(512 + 512, 512, activ='leaky')
-        self.dec_6 = PCBR(512 + 512, 512, activ='leaky')
-        self.dec_5 = PCBR(512 + 512, 512, activ='leaky')
-        self.dec_4 = PCBR(512 + 256, 256, activ='leaky')
-        self.dec_3 = PCBR(256 + 128, 128, activ='leaky')
-        self.dec_2 = PCBR(128 + 64, 64, activ='leaky')
-        self.dec_1 = PCBR(64 + 3, 3, bn=False, activ=None)
+        for i in range(4, self.layer_size):
+            name = 'dec_{:d}'.format(i + 1)
+            setattr(self, name, PCBActiv(512 + 512, 512, activ='leaky'))
+        self.dec_4 = PCBActiv(512 + 256, 256, activ='leaky')
+        self.dec_3 = PCBActiv(256 + 128, 128, activ='leaky')
+        self.dec_2 = PCBActiv(128 + 64, 64, activ='leaky')
+        self.dec_1 = PCBActiv(64 + 3, 3, bn=False, activ=None)
 
     def forward(self, input, input_mask):
         h_dict = {}  # for the output of enc_N
@@ -156,20 +155,22 @@ class PConvUNet(nn.Module):
         h_dict['h_0'], h_mask_dict['h_0'] = input, input_mask
 
         h_key_prev = 'h_0'
-        for i in range(1, 9):
+        for i in range(1, self.layer_size + 1):
             l_key = 'enc_{:d}'.format(i)
             h_key = 'h_{:d}'.format(i)
             h_dict[h_key], h_mask_dict[h_key] = getattr(self, l_key)(
                 h_dict[h_key_prev], h_mask_dict[h_key_prev])
             h_key_prev = h_key
 
-        h, h_mask = h_dict['h_8'], h_mask_dict['h_8']
+        h_key = 'h_{:d}'.format(self.layer_size)
+        h, h_mask = h_dict[h_key], h_mask_dict[h_key]
 
         # concat upsampled output of h_enc_N-1 and dec_N+1, then do dec_N
         # (exception)
         #                            input         dec_2            dec_1
         #                            h_enc_7       h_enc_8          dec_8
-        for i in range(8, 0, -1):
+
+        for i in range(self.layer_size, 0, -1):
             enc_h_key = 'h_{:d}'.format(i - 1)
             dec_l_key = 'dec_{:d}'.format(i)
 
@@ -212,6 +213,7 @@ if __name__ == '__main__':
     assert (torch.sum(torch.isnan(conv.conv2d.bias.grad)).item() == 0)
 
     from IPython import embed
+
     embed()
     exit()
 

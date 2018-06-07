@@ -8,11 +8,11 @@ from torchvision import transforms
 from tqdm import tqdm
 
 import opt
-from dataset import Dataset
 from evaluation import evaluate
 from loss import InpaintingLoss
 from net import PConvUNet
 from net import VGG16FeatureExtractor
+from places2 import Places2
 from util.io import load_ckpt
 from util.io import save_ckpt
 
@@ -28,8 +28,7 @@ class InfiniteSampler(data.sampler.Sampler):
         return 2 ** 31
 
     def loop(self):
-        # i = 0
-        i = self.num_samples - 1
+        i = 0
         order = np.random.permutation(self.num_samples)
         while True:
             yield order[i]
@@ -42,13 +41,14 @@ class InfiniteSampler(data.sampler.Sampler):
 
 parser = argparse.ArgumentParser()
 # training options
-parser.add_argument('--root', type=str, default='./data')
+parser.add_argument('--img_root', type=str, default='/srv/datasets/Places2')
+parser.add_argument('--mask_root', type=str, default='./masks')
 parser.add_argument('--save_dir', type=str, default='./snapshots/default')
 parser.add_argument('--log_dir', type=str, default='./logs/default')
 parser.add_argument('--lr', type=float, default=2e-4)
 parser.add_argument('--lr_finetune', type=float, default=5e-5)
 parser.add_argument('--max_iter', type=int, default=100000)
-parser.add_argument('--batch_size', type=int, default=8)
+parser.add_argument('--batch_size', type=int, default=16)
 parser.add_argument('--n_threads', type=int, default=16)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--vis_interval', type=int, default=5000)
@@ -69,14 +69,14 @@ if not os.path.exists(args.log_dir):
 writer = SummaryWriter(log_dir=args.log_dir)
 
 size = (args.image_size, args.image_size)
-img_transform = transforms.Compose(
+img_tf = transforms.Compose(
     [transforms.Resize(size=size), transforms.ToTensor(),
      transforms.Normalize(mean=opt.MEAN, std=opt.STD)])
-mask_transform = transforms.Compose(
+mask_tf = transforms.Compose(
     [transforms.Resize(size=size), transforms.ToTensor()])
 
-dataset_train = Dataset(args.root, img_transform, mask_transform, 'train')
-dataset_val = Dataset(args.root, img_transform, mask_transform, 'val')
+dataset_train = Places2(args.img_root, args.mask_root, img_tf, mask_tf, 'test')
+dataset_val = Places2(args.img_root, args.mask_root, img_tf, mask_tf, 'val')
 
 iterator_train = iter(data.DataLoader(
     dataset_train, batch_size=args.batch_size,
