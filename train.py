@@ -51,7 +51,7 @@ parser.add_argument('--max_iter', type=int, default=100000)
 parser.add_argument('--batch_size', type=int, default=8)
 parser.add_argument('--n_threads', type=int, default=16)
 parser.add_argument('--save_model_interval', type=int, default=10000)
-parser.add_argument('--vis_interval', type=int, default=100)
+parser.add_argument('--vis_interval', type=int, default=5000)
 parser.add_argument('--log_interval', type=int, default=10)
 parser.add_argument('--image_size', type=int, default=256)
 parser.add_argument('--resume', type=str)
@@ -125,8 +125,6 @@ for i in tqdm(range(start_iter, args.max_iter)):
 
     if (i + 1) % args.vis_interval == 0:
         model.eval()
-        evaluate(model, dataset_train, device,
-                 '{:s}/images/train_{:d}.jpg'.format(args.save_dir, i + 1))
         evaluate(model, dataset_val, device,
                  '{:s}/images/test_{:d}.jpg'.format(args.save_dir, i + 1))
 
