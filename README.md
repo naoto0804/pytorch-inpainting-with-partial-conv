@@ -2,6 +2,8 @@
 
 This is an unofficial pytorch implementation of a paper, Image Inpainting for Irregular Holes Using Partial Convolutions' [Liu+, arXiv2018].
 
+**Note that this is an ongoing project and I cannot fully reproduce the results. Suggestions are welcome!**
+
 ## Requirements
 - Python3.6
 - Pytorch 0.4.0
