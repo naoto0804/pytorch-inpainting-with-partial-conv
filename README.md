@@ -1,8 +1,8 @@
 # pytorch-inpainting-with-partial-conv
 
-This is an unofficial pytorch implementation of a paper, Image Inpainting for Irregular Holes Using Partial Convolutions' [Liu+, arXiv2018].
+**Note that this is an ongoing project and I cannot fully reproduce the results. Suggestions and PRs are welcome!**
 
-**Note that this is an ongoing project and I cannot fully reproduce the results. Suggestions are welcome!**
+This is an unofficial pytorch implementation of a paper, Image Inpainting for Irregular Holes Using Partial Convolutions' [Liu+, arXiv2018].
 
 ## Requirements
 - Python3.6
