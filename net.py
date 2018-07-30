@@ -50,66 +50,61 @@ class VGG16FeatureExtractor(nn.Module):
         return results[1:]
 
 
-class PConv2d(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size, stride=1, padding=0):
+class PartialConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding=0, dilation=1, groups=1, bias=True):
         super().__init__()
-        self.conv2d = nn.Conv2d(in_ch, out_ch, kernel_size, stride, padding)
-        self.mask2d = nn.Conv2d(in_ch, out_ch, kernel_size, stride, padding)
-        self.conv2d.apply(weights_init('kaiming'))
-        self.mask2d.weight.data.fill_(1.0)
-        self.mask2d.bias.data.fill_(0.0)
+        self.input_conv = nn.Conv2d(in_channels, out_channels, kernel_size,
+                                    stride, padding, dilation, groups, bias)
+        self.mask_conv = nn.Conv2d(in_channels, out_channels, kernel_size,
+                                   stride, padding, dilation, groups, False)
+        self.input_conv.apply(weights_init('kaiming'))
+
+        torch.nn.init.constant_(self.mask_conv.weight, 1.0)
 
         # mask is not updated
-        for param in self.mask2d.parameters():
+        for param in self.mask_conv.parameters():
             param.requires_grad = False
 
-    def forward(self, input, input_mask):
+    def forward(self, input, mask):
         # http://masc.cs.gmu.edu/wiki/partialconv
         # C(X) = W^T * X + b, C(0) = b, D(M) = 1 * M + 0 = sum(M)
         # W^T* (M .* X) / sum(M) + b = [C(M .* X) – C(0)] / D(M) + C(0)
 
-        input_0 = input.new_zeros(input.size())
-
-        output = F.conv2d(
-            input * input_mask, self.conv2d.weight, self.conv2d.bias,
-            self.conv2d.stride, self.conv2d.padding, self.conv2d.dilation,
-            self.conv2d.groups)
-
-        output_0 = F.conv2d(input_0, self.conv2d.weight, self.conv2d.bias,
-                            self.conv2d.stride, self.conv2d.padding,
-                            self.conv2d.dilation, self.conv2d.groups)
+        output = self.input_conv(input * mask)
+        if self.input_conv.bias is not None:
+            output_bias = self.input_conv.bias.view(1, -1, 1, 1).expand_as(
+                output)
+        else:
+            output_bias = torch.zeros_like(output)
 
         with torch.no_grad():
-            output_mask = F.conv2d(
-                input_mask, self.mask2d.weight, self.mask2d.bias,
-                self.mask2d.stride, self.mask2d.padding, self.mask2d.dilation,
-                self.mask2d.groups)
+            output_mask = self.mask_conv(mask)
 
-        n_z_ind = (output_mask != 0.0)
-        z_ind = (output_mask == 0.0)  # skip all the computation
+        no_update_holes = output_mask == 0
+        mask_sum = output_mask.masked_fill_(no_update_holes, 1.0)
 
-        output[n_z_ind] = \
-            (output[n_z_ind] - output_0[n_z_ind]) / output_mask[n_z_ind] + \
-            output_0[n_z_ind]
-        output[z_ind] = 0.0
+        output_pre = (output - output_bias) / mask_sum + output_bias
+        output = output_pre.masked_fill_(no_update_holes, 0.0)
 
-        output_mask[n_z_ind] = 1.0
-        output_mask[z_ind] = 0.0
+        new_mask = torch.ones_like(output)
+        new_mask = new_mask.masked_fill_(no_update_holes, 0.0)
 
-        return output, output_mask
+        return output, new_mask
 
 
 class PCBActiv(nn.Module):
-    def __init__(self, in_ch, out_ch, bn=True, sample='none-3', activ='relu'):
+    def __init__(self, in_ch, out_ch, bn=True, sample='none-3', activ='relu',
+                 conv_bias=False):
         super().__init__()
         if sample == 'down-5':
-            self.conv = PConv2d(in_ch, out_ch, 5, 2, 2)
+            self.conv = PartialConv(in_ch, out_ch, 5, 2, 2, bias=conv_bias)
         elif sample == 'down-7':
-            self.conv = PConv2d(in_ch, out_ch, 7, 2, 3)
+            self.conv = PartialConv(in_ch, out_ch, 7, 2, 3, bias=conv_bias)
         elif sample == 'down-3':
-            self.conv = PConv2d(in_ch, out_ch, 3, 2, 1)
+            self.conv = PartialConv(in_ch, out_ch, 3, 2, 1, bias=conv_bias)
         else:
-            self.conv = PConv2d(in_ch, out_ch, 3, 1, 1)
+            self.conv = PartialConv(in_ch, out_ch, 3, 1, 1, bias=conv_bias)
 
         if bn:
             self.bn = nn.BatchNorm2d(out_ch)
@@ -146,7 +141,7 @@ class PConvUNet(nn.Module):
         self.dec_4 = PCBActiv(512 + 256, 256, activ='leaky')
         self.dec_3 = PCBActiv(256 + 128, 128, activ='leaky')
         self.dec_2 = PCBActiv(128 + 64, 64, activ='leaky')
-        self.dec_1 = PCBActiv(64 + 3, 3, bn=False, activ=None)
+        self.dec_1 = PCBActiv(64 + 3, 3, bn=False, activ=None, conv_bias=True)
 
     def forward(self, input, input_mask):
         h_dict = {}  # for the output of enc_N
@@ -200,7 +195,7 @@ if __name__ == '__main__':
     input_mask = torch.ones(size)
     input_mask[:, :, 2:, :][:, :, :, 2:] = 0
 
-    conv = PConv2d(3, 3, 3, 1, 1)
+    conv = PartialConv(3, 3, 3, 1, 1)
     l1 = nn.L1Loss()
     input.requires_grad = True
 
@@ -209,13 +204,8 @@ if __name__ == '__main__':
     loss.backward()
 
     assert (torch.sum(input.grad != input.grad).item() == 0)
-    assert (torch.sum(torch.isnan(conv.conv2d.weight.grad)).item() == 0)
-    assert (torch.sum(torch.isnan(conv.conv2d.bias.grad)).item() == 0)
-
-    from IPython import embed
-
-    embed()
-    exit()
+    assert (torch.sum(torch.isnan(conv.input_conv.weight.grad)).item() == 0)
+    assert (torch.sum(torch.isnan(conv.input_conv.bias.grad)).item() == 0)
 
     # model = PConvUNet()
     # output, output_mask = model(input, input_mask)
