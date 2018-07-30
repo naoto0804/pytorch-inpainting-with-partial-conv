@@ -25,6 +25,11 @@ python generate_data.py
 CUDA_VISIBLE_DEVICES=$(nvidia-empty) python train.py
 ```
 
+## Results
+
+Here are some results from the test set after the training of 200,000 iterations.
+![Results](result_iter_200000.png)
+
 ## References
 - [1]: G. Liu et al. "Image Inpainting for Irregular Holes Using Partial Convolutions", in arXiv, 2018.
 - [2]: [Unofficial implementation in Chainer](https://github.com/SeitaroShinagawa/chainer-partial_convolution_image_inpainting)
