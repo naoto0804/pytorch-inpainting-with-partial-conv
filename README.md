@@ -16,6 +16,9 @@ pip install -r requirements.txt
 
 ### Preprocesse 
 Generate masks by following [2] (saved under `./masks` by default).
+
+**Note that the way of the mask generation is different from the original work [1]**
+
 ```
 python generate_data.py
 ```
