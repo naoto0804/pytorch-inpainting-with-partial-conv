@@ -34,7 +34,8 @@ Here are some results from the test set after the training of 200,000 iterations
 ![Results](result_iter_200000.png)
 
 ## TODO
-- [x] Fine-tuning (fix BN params in encoder)
+- [] Fine-tuning (fix BN params in encoder)
+- [] Check the quality
 
 ## References
 - [1]: G. Liu et al. "Image Inpainting for Irregular Holes Using Partial Convolutions", in arXiv, 2018.
