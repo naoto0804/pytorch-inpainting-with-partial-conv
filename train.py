@@ -58,6 +58,7 @@ parser.add_argument('--resume', type=str)
 parser.add_argument('--finetune', action='store_true')
 args = parser.parse_args()
 
+torch.backends.cudnn.benchmark = True
 device = torch.device('cuda')
 
 if not os.path.exists(args.save_dir):
@@ -85,15 +86,15 @@ iterator_train = iter(data.DataLoader(
 print(len(dataset_train))
 model = PConvUNet().to(device)
 
-optimizer = torch.optim.Adam(
-    filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
-criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
-
 if args.finetune:
     lr = args.lr_finetune
     model.freeze_enc_bn = True
 else:
     lr = args.lr
+
+optimizer = torch.optim.Adam(
+    filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
+criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
 
 if args.resume:
     start_iter = load_ckpt(
