@@ -4,6 +4,6 @@ pkg-resources==0.0.0
 protobuf==3.5.2.post1
 six==1.11.0
 tensorboardX==1.2
-torch==0.4.0
+torch==0.4.1
 torchvision==0.2.1
 tqdm==4.23.4
