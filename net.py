@@ -123,11 +123,12 @@ class PCBActiv(nn.Module):
 
 
 class PConvUNet(nn.Module):
-    def __init__(self, layer_size=7):
+    def __init__(self, layer_size=7, input_channels=3, upsampling_mode='nearest'):
         super().__init__()
         self.freeze_enc_bn = False
+        self.upsampling_mode = upsampling_mode
         self.layer_size = layer_size
-        self.enc_1 = PCBActiv(3, 64, bn=False, sample='down-7')
+        self.enc_1 = PCBActiv(input_channels, 64, bn=False, sample='down-7')
         self.enc_2 = PCBActiv(64, 128, sample='down-5')
         self.enc_3 = PCBActiv(128, 256, sample='down-5')
         self.enc_4 = PCBActiv(256, 512, sample='down-3')
@@ -141,7 +142,8 @@ class PConvUNet(nn.Module):
         self.dec_4 = PCBActiv(512 + 256, 256, activ='leaky')
         self.dec_3 = PCBActiv(256 + 128, 128, activ='leaky')
         self.dec_2 = PCBActiv(128 + 64, 64, activ='leaky')
-        self.dec_1 = PCBActiv(64 + 3, 3, bn=False, activ=None, conv_bias=True)
+        self.dec_1 = PCBActiv(64 + input_channels, input_channels,
+                              bn=False, activ=None, conv_bias=True)
 
     def forward(self, input, input_mask):
         h_dict = {}  # for the output of enc_N
@@ -169,8 +171,9 @@ class PConvUNet(nn.Module):
             enc_h_key = 'h_{:d}'.format(i - 1)
             dec_l_key = 'dec_{:d}'.format(i)
 
-            h = F.upsample(h, scale_factor=2)
-            h_mask = F.upsample(h_mask, scale_factor=2)
+            h = F.interpolate(h, scale_factor=2, mode=self.upsampling_mode)
+            h_mask = F.interpolate(
+                h_mask, scale_factor=2, mode='nearest')
 
             h = torch.cat([h, h_dict[enc_h_key]], dim=1)
             h_mask = torch.cat([h_mask, h_mask_dict[enc_h_key]], dim=1)

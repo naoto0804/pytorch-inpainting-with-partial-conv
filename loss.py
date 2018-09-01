@@ -14,7 +14,7 @@ def gram_matrix(feat):
 def total_variation_loss(image):
     # shift one pixel and get difference (for both x and y direction)
     loss = torch.mean(torch.abs(image[:, :, :, :-1] - image[:, :, :, 1:])) + \
-           torch.mean(torch.abs(image[:, :, :-1, :] - image[:, :, 1:, :]))
+        torch.mean(torch.abs(image[:, :, :-1, :] - image[:, :, 1:, :]))
     return loss
 
 
@@ -31,9 +31,16 @@ class InpaintingLoss(nn.Module):
         loss_dict['hole'] = self.l1((1 - mask) * output, (1 - mask) * gt)
         loss_dict['valid'] = self.l1(mask * output, mask * gt)
 
-        feat_output_comp = self.extractor(output_comp)
-        feat_output = self.extractor(output)
-        feat_gt = self.extractor(gt)
+        if output.shape[1] == 3:
+            feat_output_comp = self.extractor(output_comp)
+            feat_output = self.extractor(output)
+            feat_gt = self.extractor(gt)
+        elif output.shape[1] == 1:
+            feat_output_comp = self.extractor(torch.cat([output_comp]*3, 1))
+            feat_output = self.extractor(torch.cat([output]*3, 1))
+            feat_gt = self.extractor(torch.cat([gt]*3, 1))
+        else:
+            raise ValueError('only gray an')
 
         loss_dict['prc'] = 0.0
         for i in range(3):
