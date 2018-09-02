@@ -92,6 +92,7 @@ if args.finetune:
 else:
     lr = args.lr
 
+start_iter = 0
 optimizer = torch.optim.Adam(
     filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
 criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
@@ -99,8 +100,9 @@ criterion = InpaintingLoss(VGG16FeatureExtractor()).to(device)
 if args.resume:
     start_iter = load_ckpt(
         args.resume, [('model', model)], [('optimizer', optimizer)])
-else:
-    start_iter = 0
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+    print('Starting from iter ', start_iter)
 
 for i in tqdm(range(start_iter, args.max_iter)):
     model.train()

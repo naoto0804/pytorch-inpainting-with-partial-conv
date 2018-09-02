@@ -28,6 +28,11 @@ python generate_data.py
 CUDA_VISIBLE_DEVICES=$(nvidia-empty) python train.py
 ```
 
+### Fine-tune
+```
+CUDA_VISIBLE_DEVICES=$(nvidia-empty) python train.py --finetune --resume <checkpoint_name>
+```
+
 ## Results
 
 Here are some results from the test set after the training of 200,000 iterations.
