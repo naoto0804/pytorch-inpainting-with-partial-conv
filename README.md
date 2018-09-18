@@ -25,12 +25,12 @@ python generate_data.py
 
 ### Train
 ```
-CUDA_VISIBLE_DEVICES=$(nvidia-empty) python train.py
+CUDA_VISIBLE_DEVICES=<gpu_id> python train.py
 ```
 
 ### Fine-tune
 ```
-CUDA_VISIBLE_DEVICES=$(nvidia-empty) python train.py --finetune --resume <checkpoint_name>
+CUDA_VISIBLE_DEVICES=<gpu_id> python train.py --finetune --resume <checkpoint_name>
 ```
 
 ## Results
