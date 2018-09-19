@@ -35,8 +35,8 @@ CUDA_VISIBLE_DEVICES=<gpu_id> python train.py --finetune --resume <checkpoint_na
 
 ## Results
 
-Here are some results from the test set after the training of 200,000 iterations.
-![Results](result_iter_200000.png)
+Here are some results from the test set after the training of 500,000 iterations and fine-tuning (freezing BN in encoder) of 500,000 iterations.
+![Results](result_iter_1000000.png)
 
 ## TODO
 - [] Check the quality
