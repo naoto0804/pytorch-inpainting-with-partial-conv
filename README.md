@@ -2,7 +2,7 @@
 
 **Note that this is an ongoing project and I cannot fully reproduce the results. Suggestions and PRs are welcome!**
 
-This is an unofficial pytorch implementation of a paper, Image Inpainting for Irregular Holes Using Partial Convolutions' [Liu+, arXiv2018].
+This is an unofficial pytorch implementation of a paper, [Image Inpainting for Irregular Holes Using Partial Convolutions](https://arxiv.org/abs/1804.07723) [Liu+, arXiv2018].
 
 ## Requirements
 - Python 3.6+
@@ -15,9 +15,9 @@ pip install -r requirements.txt
 ## Usage
 
 ### Preprocesse 
-Generate masks by following [2] (saved under `./masks` by default).
+Generate masks by following [1] (saved under `./masks` by default).
 
-**Note that the way of the mask generation is different from the original work [1]**
+**Note that the way of the mask generation is different from the original work**
 
 ```
 python generate_data.py
@@ -39,9 +39,7 @@ Here are some results from the test set after the training of 200,000 iterations
 ![Results](result_iter_200000.png)
 
 ## TODO
-- [] Fine-tuning (fix BN params in encoder)
 - [] Check the quality
 
 ## References
-- [1]: G. Liu et al. "Image Inpainting for Irregular Holes Using Partial Convolutions", in arXiv, 2018.
-- [2]: [Unofficial implementation in Chainer](https://github.com/SeitaroShinagawa/chainer-partial_convolution_image_inpainting)
+- [1]: [Unofficial implementation in Chainer](https://github.com/SeitaroShinagawa/chainer-partial_convolution_image_inpainting)
