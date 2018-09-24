@@ -1,6 +1,5 @@
 numpy==1.14.4
 Pillow==5.1.0
-pkg-resources==0.0.0
 protobuf==3.5.2.post1
 six==1.11.0
 tensorboardX==1.2
