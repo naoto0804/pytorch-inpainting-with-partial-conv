@@ -32,6 +32,10 @@ CUDA_VISIBLE_DEVICES=<gpu_id> python train.py
 ```
 CUDA_VISIBLE_DEVICES=<gpu_id> python train.py --finetune --resume <checkpoint_name>
 ```
+### Test
+```
+CUDA_VISIBLE_DEVICES=<gpu_id> python test.py --snapshot <snapshot_path>
+```
 
 ## Results
 
