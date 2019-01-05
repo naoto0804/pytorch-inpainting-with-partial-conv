@@ -1,5 +1,7 @@
 # pytorch-inpainting-with-partial-conv
 
+**[Official implementation](https://github.com/NVIDIA/partialconv) is released by the authors.**
+
 **Note that this is an ongoing re-implementation and I cannot fully reproduce the results. Suggestions and PRs are welcome!**
 
 This is an unofficial pytorch implementation of a paper, [Image Inpainting for Irregular Holes Using Partial Convolutions](https://arxiv.org/abs/1804.07723) [Liu+, arXiv2018].
