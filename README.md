@@ -16,11 +16,10 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Preprocesse 
-Generate masks by following [1] (saved under `./masks` by default).
+### Preprocess 
+- download [Places2](http://places2.csail.mit.edu/) and place it somewhere. The dataset should contain `data_large`, `val_large`, and `test_large` as the subdirectories. Don't forget to specify the root of the dataset by `--root ROOT` when using `train.py` or `test.py`
 
-**Note that the way of the mask generation is different from the original work**
-
+- Generate masks by following [1] (saved under `./masks` by default). **Note that the way of the mask generation is different from the original work**
 ```
 python generate_data.py
 ```
